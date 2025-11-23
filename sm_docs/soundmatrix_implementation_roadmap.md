@@ -1,30 +1,33 @@
 # Toptea SoundMatrix - 项目实施路线图
 
-**版本：** 1.1 (2025-11-22 更新)
-**当前状态：** Phase 2 完成，Phase 3 启动中
+**版本：** 1.2 (2025-11-23 更新)
+**当前状态：** Phase 3 (Android Client) - 深度迭代中
 
 **角色分配：**
 * **总设计师 (Architect):** Gemini
-* **后端/数据库 (Backend Dev):** JULES (已交付)
-* **安卓开发 (Android Dev):** CEO (User) (执行中)
+* **后端/数据库 (Backend Dev):** JULES (已交付 Phase 2.5)
+* **安卓开发 (Android Dev):** CEO (User) (执行 Phase 3)
 
 ## Phase 1: 基石构建 (Infrastructure)
-* [x] **Step 1.1 [Data]:** 数据库表结构设计与迁移脚本 (SQL)。 -> *Completed (2025-11-22)*
-* [x] **Step 1.2 [Spec]:** API 接口详细定义 (Mock Data)。 -> *Completed (2025-11-22)*
-* [ ] **Step 1.3 [Android]:** 安卓项目初始化与架构搭建 (Room/Retrofit)。 -> *Assignee: CEO (Next Step)*
+* [x] **Step 1.1 [Data]:** 数据库表结构设计与迁移脚本 (SQL)。 -> *Completed*
+* [x] **Step 1.2 [Spec]:** API 接口详细定义 (Mock Data)。 -> *Completed*
 
 ## Phase 2: 后端核心 (Backend Core)
-* [x] **Step 2.1 [Admin]:** 搭建独立后台框架，复用 Toptea 样式。 -> *Completed (2025-11-22)*
-* [x] **Step 2.2 [Logic]:** 实现歌曲上传 (MD5计算) 与歌单管理。 -> *Completed (2025-11-22)*
-* [x] **Step 2.3 [Logic]:** 实现排期策略 (Time Slots) 与日历管理逻辑。 -> *Completed (2025-11-22)*
-* [x] **Step 2.4 [API]:** 开发 `/check-update` 差异化对比接口。 -> *Completed (2025-11-22)*
-    * *验证通过：API 正确返回 `Missing MAC` 错误，证明路由与逻辑已生效。*
+* [x] **Step 2.1 [Admin]:** 后台管理界面 (Songs, Playlists, Strategies)。 -> *Completed*
+* [x] **Step 2.2 [Logic]:** 策略排期与指派逻辑。 -> *Completed*
+* [x] **Step 2.3 [Security]:** API 鉴权 (Header)、设备准入 (Status=0)、时长自动解析。 -> *Completed (Phase 2.5)*
 
 ## Phase 3: 客户端开发 (Android Client)
-* [ ] **Step 3.1 [Sync]:** 实现“下载管理器” (断点续传、MD5校验)。 -> *Assignee: CEO*
-* [ ] **Step 3.2 [DB]:** 本地 Room 数据库读写逻辑。 -> *Assignee: CEO*
-* [ ] **Step 3.3 [Play]:** 实现播放引擎 (ExoPlayer) 与无缝切换。 -> *Assignee: CEO*
-* [ ] **Step 3.4 [Job]:** 实现“守护服务”与“开机自启”。 -> *Assignee: CEO*
+* [x] **Step 3.1 [Skeleton]:** 基础架构 (Retrofit, Room, ExoPlayer, Service) 搭建完成。 -> *Completed*
+* [ ] **Step 3.2 [Logic & Stability] (当前任务):**
+    * **自动轮询 (Auto-Polling):** 每 5 分钟检查更新，不再依赖重启。
+    * **热重载 (Hot Reload):** 下载完成后发送广播，立即刷新播放列表。
+    * **播放过滤 (Filtering):** 严格根据策略的 playlist_id 播放，而非播放所有文件。
+    * **紧急熔断 (Kill Switch):** 设备禁用时立即停止播放。
+    * **日志防爆 (Log Rotation):** 限制日志行数，防止 OOM。
+* [ ] **Step 3.3 [UX & Ops] (视觉重构):**
+    * **暗黑模式 (Dark Mode):** 全局原生黑色背景 (#000000)，防止 OLED 烧屏。
+    * **运维仪表盘 (Dashboard):** 显示 MAC 地址、当前曲目、音量警告、红绿状态灯。
 
 ## Phase 4: 联调与部署 (Integration)
 * [ ] **Step 4.1 [Test]:** 模拟全周期的策略下发与执行测试。
