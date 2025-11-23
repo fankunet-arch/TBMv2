@@ -11,6 +11,24 @@ class ApiController {
         $this->db = Database::getInstance()->getConnection();
     }
 
+    /**
+     * 安全鉴权检查 - 强制验证 X-Toptea-Secret 头
+     * 如果验证失败，返回 HTTP 403 并终止执行
+     */
+    private function verifyApiSecret() {
+        $headers = getallheaders();
+        $secret = $headers['X-Toptea-Secret'] ?? '';
+        // 兼容部分服务器 header 大小写问题
+        if (empty($secret)) {
+            $secret = $headers['x-toptea-secret'] ?? '';
+        }
+
+        if ($secret !== self::API_SECRET) {
+            http_response_code(403);
+            exit; // 403 Forbidden - 不返回任何内容
+        }
+    }
+
     private function jsonResponse($data) {
         header('Content-Type: application/json');
         echo json_encode($data);
@@ -18,6 +36,7 @@ class ApiController {
     }
 
     public function heartbeat() {
+        $this->verifyApiSecret(); // 强制鉴权
         $this->jsonResponse(['status'=>'success', 'msg'=>'System Online']);
     }
 
@@ -26,17 +45,8 @@ class ApiController {
      * POST /smsys/api/check_update
      */
     public function check_update() {
-        // 0. 安全校验 (简单版)
-        $headers = getallheaders();
-        $secret = $headers['X-Toptea-Secret'] ?? '';
-        // 兼容部分服务器 header 大小写问题
-        if (empty($secret)) $secret = $headers['x-toptea-secret'] ?? '';
-        
-        if ($secret !== self::API_SECRET) {
-            // 为了调试方便，暂时注释掉强制校验，或者仅记录日志
-            // 生产环境建议开启：
-            // $this->jsonResponse(['status'=>'error', 'message'=>'Unauthorized']);
-        }
+        // 0. 安全鉴权 - 强制检查
+        $this->verifyApiSecret();
 
         // 1. 获取输入
         $input = json_decode(file_get_contents('php://input'), true);
@@ -49,12 +59,11 @@ class ApiController {
         $device = $this->getOrRegisterDevice($mac);
 
         // 3. 核心安全拦截：如果设备未激活 (status = 0)
+        // 返回文档规定的标准错误格式
         if ($device['status'] == 0) {
             $this->jsonResponse([
                 'status' => 'error',
-                'code' => 403, // 特殊状态码，安卓端识别后显示“联系管理员”
-                'message' => 'Device Not Activated. Please contact HQ.',
-                'device_id' => $device['id']
+                'message' => 'Device Not Activated'
             ]);
         }
         
@@ -63,8 +72,18 @@ class ApiController {
             $this->jsonResponse(['status'=>'error', 'message'=>'Device Blocked']);
         }
 
-        // 4. 版本比对 (仅当设备激活后)
-        $lastMod = $this->db->query("SELECT MAX(updated_at) as t FROM sm_assignments")->fetch()['t'];
+        // 4. 增强版版本号计算 - 综合三张配置表的最后更新时间
+        // 确保任何配置变更（指派/歌单/策略）都能触发客户端更新
+        $sql = "
+            SELECT MAX(updated_at) as max_time FROM (
+                SELECT MAX(updated_at) as updated_at FROM sm_assignments
+                UNION ALL
+                SELECT MAX(updated_at) as updated_at FROM sm_playlists
+                UNION ALL
+                SELECT MAX(updated_at) as updated_at FROM sm_strategies
+            ) as all_updates
+        ";
+        $lastMod = $this->db->query($sql)->fetch()['max_time'];
         $serverVer = strtotime($lastMod ?? 'now');
 
         if ($clientVer == $serverVer) {

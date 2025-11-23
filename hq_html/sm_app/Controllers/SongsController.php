@@ -12,6 +12,73 @@ class SongsController extends BaseController {
     }
 
     /**
+     * 解析 MP3 文件时长（秒）
+     * 优先使用 ffprobe (轻量级且准确)
+     * 失败则尝试简单的 MP3 帧分析
+     *
+     * @param string $filePath 文件绝对路径
+     * @return int 时长（秒），失败返回 0
+     */
+    private function getMp3Duration($filePath) {
+        // 方法1: 尝试使用 ffprobe (大多数服务器都有 ffmpeg)
+        $ffprobe = shell_exec("ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " . escapeshellarg($filePath) . " 2>&1");
+        if ($ffprobe && is_numeric(trim($ffprobe))) {
+            return (int)round(floatval(trim($ffprobe)));
+        }
+
+        // 方法2: 简单 MP3 帧头解析（CBR 格式）
+        // 读取文件的前几帧来估算
+        $fp = fopen($filePath, 'rb');
+        if (!$fp) return 0;
+
+        $fileSize = filesize($filePath);
+        $duration = 0;
+
+        // 跳过 ID3v2 标签（如果存在）
+        $header = fread($fp, 10);
+        if (substr($header, 0, 3) === 'ID3') {
+            $flags = ord($header[5]);
+            $size = (ord($header[6]) << 21) | (ord($header[7]) << 14) | (ord($header[8]) << 7) | ord($header[9]);
+            fseek($fp, $size + 10);
+        } else {
+            fseek($fp, 0);
+        }
+
+        // 尝试读取第一个有效的 MP3 帧头
+        $frameHeader = fread($fp, 4);
+        if (strlen($frameHeader) === 4) {
+            $byte1 = ord($frameHeader[0]);
+            $byte2 = ord($frameHeader[1]);
+
+            // 检查帧同步字 (11111111 111)
+            if ($byte1 === 0xFF && ($byte2 & 0xE0) === 0xE0) {
+                // 解析 MPEG 版本和层
+                $version = ($byte2 >> 3) & 0x03;
+                $layer = ($byte2 >> 1) & 0x03;
+                $bitrateIndex = ($frameHeader[2] >> 4) & 0x0F;
+                $sampleRateIndex = ($frameHeader[2] >> 2) & 0x03;
+
+                // MPEG1 Layer3 (MP3) 比特率表 (kbps)
+                $bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
+                $sampleRates = [44100, 48000, 32000];
+
+                if ($bitrateIndex > 0 && $bitrateIndex < 15 && $sampleRateIndex < 3) {
+                    $bitrate = $bitrates[$bitrateIndex] * 1000; // 转为 bps
+                    $sampleRate = $sampleRates[$sampleRateIndex];
+
+                    if ($bitrate > 0) {
+                        // 估算时长: 文件大小(字节) / (比特率/8) = 秒
+                        $duration = (int)round($fileSize / ($bitrate / 8));
+                    }
+                }
+            }
+        }
+
+        fclose($fp);
+        return $duration;
+    }
+
+    /**
      * 列表页：显示所有歌曲 + 上传表单
      */
     public function index() {
@@ -71,10 +138,9 @@ class SongsController extends BaseController {
         $webUrl = 'http://' . $_SERVER['HTTP_HOST'] . '/smsys/uploads/' . $newFileName;
 
         if (move_uploaded_file($file['tmp_name'], $destPath)) {
-            // 6. 获取时长 (这是个难点，纯PHP获取时长需要 getid3 库，这里暂时填 0，后续处理)
-            // 或者让安卓端下载完后自己上报时长
-            $duration = 0; 
-            
+            // 6. 自动解析时长
+            $duration = $this->getMp3Duration($destPath);
+
             // 7. 入库
             $insert = $this->db->prepare("INSERT INTO sm_songs (title, artist, file_url, file_md5, file_size, duration) VALUES (?, ?, ?, ?, ?, ?)");
             $insert->execute([
