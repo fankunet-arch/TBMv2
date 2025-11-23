@@ -8,6 +8,10 @@ class ApiController {
     private const API_SECRET = 'TOPTEA_SECURE_KEY_2025';
 
     public function __construct() {
+        // ApiController 不继承 BaseController，所以需要手动启动 Session
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
         $this->db = Database::getInstance()->getConnection();
     }
 
