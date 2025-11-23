@@ -8,6 +8,7 @@ class SongsController extends BaseController {
     private $db;
 
     public function __construct() {
+        parent::__construct();
         $this->db = Database::getInstance()->getConnection();
     }
 
@@ -134,8 +135,9 @@ class SongsController extends BaseController {
         $destPath = $uploadDir . $newFileName;
         
         // 相对路径 (用于存库和http访问)
-        // 假设域名是 hqv3.toptea.es/smsys/
-        $webUrl = 'http://' . $_SERVER['HTTP_HOST'] . '/smsys/uploads/' . $newFileName;
+        // 动态判断协议（适配 HTTPS 环境）
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $webUrl = $protocol . $_SERVER['HTTP_HOST'] . '/smsys/uploads/' . $newFileName;
 
         if (move_uploaded_file($file['tmp_name'], $destPath)) {
             // 6. 自动解析时长

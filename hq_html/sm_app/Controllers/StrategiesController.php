@@ -7,6 +7,7 @@ class StrategiesController extends BaseController {
     private $db;
 
     public function __construct() {
+        parent::__construct();
         $this->db = Database::getInstance()->getConnection();
     }
 
@@ -39,7 +40,7 @@ class StrategiesController extends BaseController {
 
         $id = $_POST['id'] ?? 0;
         $name = $_POST['name'] ?? '未命名策略';
-        
+
         // 接收时间轴数据 (Arrays)
         $starts = $_POST['start_time'] ?? [];
         $ends = $_POST['end_time'] ?? [];
@@ -55,7 +56,13 @@ class StrategiesController extends BaseController {
                 ];
             }
         }
-        
+
+        // 【新增】时间冲突校验
+        $overlapError = $this->checkOverlap($timeline);
+        if ($overlapError) {
+            die("时间段冲突：" . $overlapError);
+        }
+
         // 存为 JSON
         $json = json_encode($timeline);
 
@@ -76,5 +83,65 @@ class StrategiesController extends BaseController {
             $this->db->prepare("DELETE FROM sm_strategies WHERE id = ?")->execute([$id]);
         }
         $this->redirect('/strategies/index');
+    }
+
+    /**
+     * 检查时间段是否重叠
+     * @param array $timeline 时间轴数组 [['start' => '08:00', 'end' => '12:00', ...], ...]
+     * @return string|null 返回错误信息，无冲突返回 null
+     */
+    private function checkOverlap($timeline) {
+        if (empty($timeline)) {
+            return null;
+        }
+
+        // 1. 将时间转换为分钟数，便于比较
+        $segments = [];
+        foreach ($timeline as $slot) {
+            $startMinutes = $this->timeToMinutes($slot['start']);
+            $endMinutes = $this->timeToMinutes($slot['end']);
+
+            // 验证结束时间必须大于开始时间
+            if ($endMinutes <= $startMinutes) {
+                return "结束时间 {$slot['end']} 必须晚于开始时间 {$slot['start']}";
+            }
+
+            $segments[] = [
+                'start' => $startMinutes,
+                'end' => $endMinutes,
+                'start_str' => $slot['start'],
+                'end_str' => $slot['end']
+            ];
+        }
+
+        // 2. 按开始时间排序
+        usort($segments, function($a, $b) {
+            return $a['start'] - $b['start'];
+        });
+
+        // 3. 检查相邻时间段是否重叠
+        for ($i = 0; $i < count($segments) - 1; $i++) {
+            $current = $segments[$i];
+            $next = $segments[$i + 1];
+
+            // 如果当前段的结束时间 > 下一段的开始时间，则存在重叠
+            if ($current['end'] > $next['start']) {
+                return "{$current['start_str']}-{$current['end_str']} 与 {$next['start_str']}-{$next['end_str']} 存在重叠";
+            }
+        }
+
+        return null; // 无冲突
+    }
+
+    /**
+     * 将时间字符串转换为分钟数
+     * @param string $time 格式 "HH:MM" 或 "HH:MM:SS"
+     * @return int 从 00:00 开始的分钟数
+     */
+    private function timeToMinutes($time) {
+        $parts = explode(':', $time);
+        $hours = (int)$parts[0];
+        $minutes = (int)($parts[1] ?? 0);
+        return $hours * 60 + $minutes;
     }
 }
