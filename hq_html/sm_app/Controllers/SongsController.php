@@ -111,6 +111,22 @@ class SongsController extends BaseController {
             die("Format not supported. Only MP3/AAC allowed.");
         }
 
+        // [BUG修复] 添加MIME类型验证，防止文件伪装
+        $allowedMimeTypes = ['audio/mpeg', 'audio/mp3', 'audio/aac', 'audio/x-m4a', 'audio/mp4'];
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        if (!in_array($mimeType, $allowedMimeTypes)) {
+            die("Invalid file type. MIME type check failed: " . htmlspecialchars($mimeType));
+        }
+
+        // [BUG修复] 限制文件大小 (例如: 最大50MB)
+        $maxFileSize = 50 * 1024 * 1024; // 50MB
+        if ($file['size'] > $maxFileSize) {
+            die("File too large. Maximum size is 50MB.");
+        }
+
         // 3. 计算 MD5 (核心去重逻辑)
         $md5 = md5_file($file['tmp_name']);
 

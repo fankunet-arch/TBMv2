@@ -51,7 +51,11 @@
                         <button type="submit" class="btn" style="background:#28a745; padding:2px 8px; font-size:12px;">激活</button>
                     </form>
                 <?php elseif ($d['status'] == 1): ?>
-                    <a href="/smsys/devices/block?id=<?= $d['id'] ?>" onclick="return confirm('确定禁用该设备？')" style="color:red; font-size:12px;">禁用</a>
+                    <!-- [BUG修复] 改为POST表单提交，避免CSRF攻击 -->
+                    <form action="/smsys/devices/block" method="post" style="display:inline;" onsubmit="return confirm('确定禁用该设备？')">
+                        <input type="hidden" name="id" value="<?= $d['id'] ?>">
+                        <button type="submit" style="background:none; border:none; color:red; font-size:12px; cursor:pointer; text-decoration:underline; padding:0;">禁用</button>
+                    </form>
                 <?php else: ?>
                     <span style="color:#ccc;">-</span>
                 <?php endif; ?>
