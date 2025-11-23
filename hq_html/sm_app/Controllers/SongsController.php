@@ -50,14 +50,15 @@ class SongsController extends BaseController {
         if (strlen($frameHeader) === 4) {
             $byte1 = ord($frameHeader[0]);
             $byte2 = ord($frameHeader[1]);
+            $byte3 = ord($frameHeader[2]);
 
             // 检查帧同步字 (11111111 111)
             if ($byte1 === 0xFF && ($byte2 & 0xE0) === 0xE0) {
                 // 解析 MPEG 版本和层
                 $version = ($byte2 >> 3) & 0x03;
                 $layer = ($byte2 >> 1) & 0x03;
-                $bitrateIndex = ($frameHeader[2] >> 4) & 0x0F;
-                $sampleRateIndex = ($frameHeader[2] >> 2) & 0x03;
+                $bitrateIndex = ($byte3 >> 4) & 0x0F;
+                $sampleRateIndex = ($byte3 >> 2) & 0x03;
 
                 // MPEG1 Layer3 (MP3) 比特率表 (kbps)
                 $bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
